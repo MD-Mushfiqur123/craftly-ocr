@@ -250,6 +250,11 @@ def _(batch_ui, compile_on, ds, load, mo, steps_ui):
         scaler.step(opt)
         scaler.update()
         loss_hist.append(loss.item())
+        if (step + 1) % 50 == 0 or step == steps_ui.value - 1:
+            _el = _time.time() - t0
+            _its = (step + 1) / _el
+            print(f"step {step + 1}/{steps_ui.value} loss={loss.item():.3f} "
+                  f"it/s={_its:.1f} eta={_el / (step + 1) * (steps_ui.value - step - 1) / 60:.1f} min")
     wall = _time.time() - t0
     its = steps_ui.value / max(wall, 1e-6)
     n_full = 200_000
