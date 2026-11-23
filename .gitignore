@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*.pt
+*.safetensors
+corpora/
+data/lines/
+data/pages/
+.venv/
