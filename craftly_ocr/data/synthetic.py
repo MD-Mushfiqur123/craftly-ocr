@@ -93,3 +93,12 @@ class SyntheticLineDataset(torch.utils.data.Dataset):
         px = buf.view(self.image_h, self.image_w, 3).permute(2, 0, 1).float() / 127.5 - 1.0
         ids = self.charset.encode(text)
         return px, ids
+
+
+def collate_lines(batch):
+    px, ids = zip(*batch)
+    lens = [len(s) for s in ids]
+    if max(lens) < 2:
+        ids = [s + [1] for s in ids]
+        lens = [len(s) for s in ids]
+    return torch.stack(px), list(ids), lens

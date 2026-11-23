@@ -25,12 +25,9 @@ from .model import CraftlyOCR
 
 
 def _collate_lines(batch):
-    px, ids = zip(*batch)
-    lens = [len(s) for s in ids]
-    if max(lens) < 2:
-        ids = [s + [1] for s in ids]
-        lens = [len(s) for s in ids]
-    return torch.stack(px), list(ids), lens
+    from .data.synthetic import collate_lines
+
+    return collate_lines(batch)
 
 
 def _pad_list(seqs, pad=1):

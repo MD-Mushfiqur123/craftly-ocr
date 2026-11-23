@@ -215,7 +215,7 @@ def _(batch_ui, compile_on, ds, load, mo, steps_ui):
         ds, batch_size=min(batch_ui.value, 16 if device == "cpu" else 512),
         num_workers=0 if device == "cpu" else 8, shuffle=True, pin_memory=device == "cuda",
         persistent_workers=device == "cuda", prefetch_factor=4 if device == "cuda" else None,
-        collate_fn=lambda b: (_torch.stack([px for px, _ in b]), [ids_b for _, ids_b in b]),
+        collate_fn=load("craftly_ocr.data.synthetic").collate_lines,
     )
     amp_dtype = _torch.bfloat16 if (device == "cuda" and _torch.cuda.is_bf16_supported()) else _torch.float16
     scaler = _torch.amp.GradScaler(device, enabled=amp_dtype == _torch.float16)
@@ -224,10 +224,10 @@ def _(batch_ui, compile_on, ds, load, mo, steps_ui):
     it, loss_hist, t0 = iter(loader), [], _time.time()
     for step in range(steps_ui.value):
         try:
-            px_b, ids_b = next(it)
+            px_b, ids_b, _lens = next(it)
         except StopIteration:
             it = iter(loader)
-            px_b, ids_b = next(it)
+            px_b, ids_b, _lens = next(it)
         px_b = px_b.to(device, non_blocking=True)
         with _torch.autocast(device_type=device, dtype=amp_dtype, enabled=device == "cuda"):
             loss = model.reader.loss(model.reader(px_b), ids_b, [len(s) for s in ids_b])
