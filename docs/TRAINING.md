@@ -9,11 +9,21 @@
 | 3 `decoder` | decoder joining reader/det results | image + prompt + JSON pairs | CE |
 | 4 `e2e` | everything | mix of 0–3 | weighted sum |
 
+## Data pipeline (bn / en / ru)
+```bash
+# 1. stream CC-100 corpora (budget per language; drop --mb for full downloads)
+python scripts/fetch_corpora.py --langs bn,en,ru --mb 2000     # 2 GB each
+# 2. clean: script filter, dedup, length filter -> corpora/<lang>.txt
+python scripts/clean_corpus.py --langs bn,en,ru --mb 2000
+# fonts for the three priority scripts are bundled in fonts/ (SIL OFL)
+
+# 3. stage 0 — synthetic multi-script reader pretrain on your corpus
+python -m craftly_ocr.train --stage reader --steps 200000 --batch 512 --corpora corpora/
+```
+
 ## Commands
 ```bash
 pip install -e ".[train]"
-# stage 0 — synthetic multi-script reader pretrain
-python -m craftly_ocr.train --stage reader --steps 200000 --batch 512 --corpora corpora/
 # stage 1 — real data fine-tune
 python -m craftly_ocr.train --stage readerft --steps 40000 --batch 256 --data data/lines
 # eval

@@ -48,14 +48,18 @@ class SyntheticLineDataset(torch.utils.data.Dataset):
         self.lines = list(_DEMO_CORPUS["bn"]) + list(_DEMO_CORPUS["en"]) + list(_DEMO_CORPUS["ru"])
         if corpora_dir:
             p = Path(corpora_dir)
-            for f in p.glob("*.txt"):
+            cleaned = [f for f in sorted(p.glob("*.txt")) if not f.name.endswith(".raw.txt")]
+            for f in cleaned:
                 self.lines.extend(
-                    ln for ln in f.read_text(encoding="utf-8").splitlines() if ln.strip()
+                    ln
+                    for ln in f.read_text(encoding="utf-8", errors="ignore").splitlines()
+                    if 3 <= len(ln.strip()) <= 120
                 )
         fonts: list[str] = []
-        fd = Path(fonts_dir or "/usr/share/fonts")
-        for pat in ("**/*.ttf", "**/*.otf"):
-            fonts.extend(str(f) for f in fd.glob(pat))
+        repo_fonts = Path(__file__).resolve().parents[2] / "fonts"
+        for d in ([Path(fonts_dir)] if fonts_dir else [repo_fonts, Path("/usr/share/fonts")]):
+            for pat in ("*.ttf", "**/*.ttf", "**/*.otf"):
+                fonts.extend(str(f) for f in d.glob(pat))
         self.fonts = [
             f
             for f in fonts
