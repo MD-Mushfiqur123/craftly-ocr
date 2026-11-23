@@ -123,7 +123,26 @@ def _(langs, load, mb, repo_root):
             secs[lang] = 0.0
         sizes[lang] = round(n / (1 << 20), 1)
     (sizes, secs)
-    return (corpora, sizes,)
+    return (corpora, sizes, secs,)
+
+
+@app.cell
+def _(mo, secs, sizes):
+    import matplotlib.pyplot as _plt
+
+    _langs = ["bn", "en", "ru"]
+    _colors = {"bn": "#16A34A", "en": "#2563EB", "ru": "#DC2626"}
+    fig, ax = _plt.subplots(1, 2, figsize=(10, 3.2))
+    ax[0].bar(_langs, [sizes.get(l, 0) for l in _langs], color=[_colors[l] for l in _langs])
+    ax[0].set_title("corpus MB (CC-100)")
+    ax[0].set_ylabel("MB")
+    ax[1].bar(_langs, [secs.get(l, 0) for l in _langs], color=[_colors[l] for l in _langs])
+    ax[1].set_title("download seconds")
+    ax[1].set_ylabel("s")
+    _txt = " | ".join(f"{l}: {sizes.get(l, 0):,.1f} MB in {secs.get(l, 0):,.1f}s" for l in _langs)
+    mo.md(f"📊 **Data report** — {_txt}")
+    fig
+    return (fig,)
 
 
 @app.cell
