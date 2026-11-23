@@ -25,6 +25,7 @@ def main():
     args = ap.parse_args()
     ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=False)
     sd = {k: v.contiguous() for k, v in ckpt["model"].items()}
+    sd.pop("decoder.lm_head.weight", None)
     from safetensors.torch import save_file
     save_file(sd, f"{args.out}.safetensors")
     save_file(export_int8(sd), f"{args.out}.int8.safetensors")
