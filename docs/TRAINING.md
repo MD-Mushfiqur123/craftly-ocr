@@ -30,6 +30,23 @@ python -m craftly_ocr.train --stage readerft --steps 40000 --batch 256 --data da
 python -m craftly_ocr.eval --ckpt craftly_stage0.pt --set data/lines/val
 ```
 
+## Maximum hardware utilization (research-backed, all wired in)
+| Technique | Why | Paper/practice source |
+|---|---|---|
+| bf16 autocast | 2-3x matmul speed on Ada/Blackwell, no loss-scaling needed | standard AMP practice (NVIDIA docs) |
+| TF32 + cuDNN benchmark | free speed on Ampere+; autotuned conv kernels | NVIDIA, ConvNeXt papers |
+| `torch.compile` (`--compile`) | kernel fusion, ~15-40% speedup on small models | PyTorch 2.x results |
+| fused AdamW (auto on CUDA) | single-kernel optimizer step | PyTorch |
+| channels_last | faster conv memory layout | NVIDIA/PyTorch recommended |
+| **length-bucketed batching** | CTC padding waste drops sharply -> more real pixels per step | fairseq-style shuffled bucketing; standard in ASR/OCR seq training |
+| multi-worker prefetch (`workers auto`, `prefetch 4`, `persistent_workers`) | hides render+IO latency behind GPU compute | PyTorch DataLoader docs |
+| `--batch 1024+` (you have 96GB!) | GPU util stays > 95%; large batch + OneCycle | Goyal et al. 2017 (large-batch training) |
+
+Start command (uses all of the above automatically):
+```bash
+python -m craftly_ocr.train --stage reader --steps 200000 --batch 1024 --compile --corpora corpora/
+```
+
 ## 96 GB VRAM budget (stage 0, bf16)
 - model 63.4M params × ~18 bytes (AdamW fp32 master + grads) ≈ 1.2 GB
 - activations dominate: batch 512 × 512px crops fits in < 40 GB
