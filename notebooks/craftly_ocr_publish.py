@@ -31,6 +31,35 @@ def _(mo):
 
 @app.cell
 def _(mo):
+    """Bootstrap: fetch the Craftly OCR repo into this notebook's working dir.
+    Works on molab (single uploaded file, fresh env) AND in a local clone."""
+    import glob as _glob
+    import importlib as _importlib
+    import io as _io
+    import os as _os
+    import sys as _sys
+    import urllib.request as _request
+    import zipfile as _zipfile
+
+    _ref = "vibe/craftly-ocr-v01-d1254f"
+    if not _os.path.exists("craftly_ocr"):
+        _resp = _request.urlopen(
+            "https://api.github.com/repos/MD-Mushfiqur123/craftly-ocr/zipball/" + _ref
+        )
+        _zipfile.ZipFile(_io.BytesIO(_resp.read())).extractall(".")
+        _os.chdir(sorted(_glob.glob("MD-Mushfiqur123-craftly-ocr-*"))[0])
+    _sys.path.insert(0, _os.getcwd())
+    repo_root = _os.getcwd()
+
+    def load(name):
+        return _importlib.import_module(name)
+
+    mo.md(f"✅ Craftly OCR repo ready: `{repo_root}`")
+    return load, repo_root
+
+
+@app.cell
+def _(mo):
     mo.md("## 1 · Your Hugging Face identity")
     return
 
@@ -74,15 +103,12 @@ def _(mo):
 
 
 @app.cell
-def _(langs, mb):
-    import sys as _sys
+def _(langs, load, mb, repo_root):
+    import time as _time
     from pathlib import Path as _Path
 
-    _sys.path.insert(0, str(_Path.cwd()))
-    from scripts.fetch_corpora import fetch as _fetch
-    import time as _time
-
-    corpora = _Path("corpora")
+    _fetch = load("scripts.fetch_corpora").fetch
+    corpora = _Path(repo_root) / "corpora"
     corpora.mkdir(exist_ok=True)
     budget = mb.value * (1 << 20)
     sizes, secs = {}, {}
@@ -101,17 +127,18 @@ def _(langs, mb):
 
 
 @app.cell
-def _(corpora, langs):
+def _(corpora, langs, repo_root):
+    import os as _os
     import subprocess as _subprocess
     import sys as _sys
     import time as _time
 
     t_c = _time.time()
     _subprocess.run(
-        [_sys.executable, "scripts/clean_corpus.py",
+        [_sys.executable, _os.path.join(repo_root, "scripts", "clean_corpus.py"),
          "--raw-dir", str(corpora), "--out-dir", str(corpora),
          "--langs", ",".join(langs.value), "--mb", "500"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, cwd=repo_root,
     )
     n_lines = sum(
         sum(1 for _ in open(corpora / f"{lg}.txt", encoding="utf-8"))
@@ -122,11 +149,15 @@ def _(corpora, langs):
 
 
 @app.cell
-def _(corpora, mo):
-    from craftly_ocr import build_charset
-    from craftly_ocr.data.synthetic import SyntheticLineDataset
+def _(corpora, load, mo, repo_root):
+    from pathlib import Path as _Path
 
-    ds = SyntheticLineDataset(build_charset(), corpora_dir=str(corpora), fonts_dir="fonts")
+    _co = load("craftly_ocr")
+    _synthetic = load("craftly_ocr.data.synthetic")
+    ds = _synthetic.SyntheticLineDataset(
+        _co.build_charset(), corpora_dir=str(corpora),
+        fonts_dir=str(_Path(repo_root) / "fonts"),
+    )
     mo.md(f"render dataset ready: **{len(ds.lines):,}** unique lines, fonts bundled in repo ✅")
     return (ds,)
 
@@ -138,23 +169,23 @@ def _(mo):
 
 
 @app.cell
-def _(batch_ui, compile_on, ds, mo, steps_ui):
+def _(batch_ui, compile_on, ds, load, mo, steps_ui):
     import time as _time
 
     import torch as _torch
 
-    from craftly_ocr.config import default_config
-    from craftly_ocr.model import CraftlyOCR
+    _config = load("craftly_ocr.config")
+    _model_mod = load("craftly_ocr.model")
 
     device = "cuda" if _torch.cuda.is_available() else "cpu"
     _torch.backends.cuda.matmul.allow_tf32 = True
     _torch.backends.cudnn.allow_tf32 = True
     _torch.backends.cudnn.benchmark = True
 
-    cfg = default_config()
+    cfg = _config.default_config()
     cfg.attn_blocks = 2
     cfg.encoder_depths = (1, 1, 1, 1, 1)
-    model = CraftlyOCR(cfg, ds.charset).to(device)
+    model = _model_mod.CraftlyOCR(cfg, ds.charset).to(device)
     model = model.to(memory_format=_torch.channels_last)
     if compile_on.value and device == "cuda":
         model.reader = _torch.compile(model.reader)
@@ -223,14 +254,13 @@ def _(mo):
 
 
 @app.cell
-def _(ds, device, model, summary):
+def _(ds, device, model, repo_root, summary):
     import json as _json
-    import tempfile
     from pathlib import Path as _Path
 
     from safetensors.torch import save_file as _save
 
-    export_dir = _Path("export") / "craftly-ocr"
+    export_dir = _Path(repo_root) / "export" / "craftly-ocr"
     export_dir.mkdir(parents=True, exist_ok=True)
     sd = {k: v.contiguous().cpu() for k, v in model.state_dict().items()}
     sd.pop("decoder.lm_head.weight", None)
