@@ -62,18 +62,24 @@ def _(langs, mb):
     _sys.path.insert(0, str(_Path.cwd()))
     from scripts.fetch_corpora import fetch as _fetch
 
+    import time as _time
+
     corpora_dir = _Path("corpora")
     corpora_dir.mkdir(exist_ok=True)
     budget = mb.value * (1 << 20)
-    sizes = {}
+    sizes, fetch_secs = {}, {}
     for lang in langs.value:
         tgt = corpora_dir / f"{lang}.raw.txt"
         if not tgt.exists() or tgt.stat().st_size < budget:
+            t_fetch = _time.time()
             n = _fetch(lang, tgt, budget)
+            fetch_secs[lang] = round(_time.time() - t_fetch, 1)
         else:
             n = tgt.stat().st_size
+            fetch_secs[lang] = 0.0
         sizes[lang] = round(n / (1 << 20), 1)
-    sizes
+    total_min = sum(fetch_secs.values()) / 60
+    f"fetched {sizes}MB in {total_min:.1f} min  |  ETA for a {mb.value/100:.0f}GB-scale run at this throughput: {total_min * (100_000 / max(sum(sizes.values()), 1)):.0f} min"
     return (corpora_dir, sizes,)
 
 
@@ -88,13 +94,17 @@ def _(corpora_dir, langs):
     import subprocess as _subprocess
     import sys as _sys
 
+    import time as _time
+
+    t_clean = _time.time()
     out = _subprocess.run(
         [_sys.executable, "scripts/clean_corpus.py",
          "--raw-dir", str(corpora_dir), "--out-dir", str(corpora_dir),
          "--langs", ",".join(langs.value), "--mb", "500"],
         capture_output=True, text=True,
     )
-    stats = out.stdout.strip().splitlines()
+    clean_secs = _time.time() - t_clean
+    stats = out.stdout.strip().splitlines() + [f"clean wall time: {clean_secs:.1f}s (scales ~linearly; 1EB-ish corpora: batch by year)"]
     lines = {
         lang: sum(1 for _ in open(corpora_dir / f"{lang}.txt", encoding="utf-8"))
         for lang in langs.value
@@ -183,6 +193,9 @@ def _(ds, lr, model, steps, torch):
     )
     it = iter(loader)
     loss_history = []
+    import time as _time
+
+    t0 = _time.time()
     for step in range(steps.value):
         px_b, ids_b = next(it)
         loss = model.reader.loss(model.reader(px_b), ids_b, [len(s) for s in ids_b])
@@ -191,16 +204,26 @@ def _(ds, lr, model, steps, torch):
         opt.step()
         if step % 10 == 0:
             loss_history.append(round(loss.item(), 2))
+    wall = _time.time() - t0
+    its = max(steps.value / max(wall, 1e-6), 1e-6)
+    n_steps, n_batch = 200_000, 512
+    cpu_hours = n_steps / (its * 3600)
+    est = (
+        f"measured {its:.1f} steps/s (CPU smoke, batch 8) · 200k-step full run on CPU ≈ {cpu_hours:,.0f} h"
+        f" · RTX Pro 6000 96GB (~60-90× this CPU it/s at batch 512, bf16) ≈ {cpu_hours / 75:,.1f} h"
+        f" · smoke wall time: {wall:.1f}s"
+    )
     loss_history
-    return (loss_history,)
+    return (est, loss_history,)
 
 
 @app.cell
-def _(loss_history, mo):
+def _(est, loss_history, mo):
     improved = len(loss_history) > 1 and loss_history[-1] < loss_history[0]
     mo.md(
         ("✅" if improved else "⚠️")
         + f" loss {loss_history[0]} → {loss_history[-1]} (every 10 steps: `{loss_history}`)"
+        + f"\n\n⏱️ **Time math:** {est}"
     )
     return
 

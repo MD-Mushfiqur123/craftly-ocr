@@ -67,6 +67,8 @@ def run_reader_stage(args, cfg, device):
     model.train()
     step = 0
     running = 0.0
+    import time
+    t0 = time.time()
     for px, ids, lens in dl:
         px = px.to(device, non_blocking=True)
         logits = model.reader(px)
@@ -78,7 +80,13 @@ def run_reader_stage(args, cfg, device):
         running += loss.item()
         step += 1
         if step % 50 == 0:
-            print(f"step {step}/{args.steps} reader_loss={running/50:.3f}", flush=True)
+            rate = step / (time.time() - t0)
+            eta_min = (args.steps - step) / max(rate, 1e-6) / 60
+            print(
+                f"step {step}/{args.steps} reader_loss={running/50:.3f} "
+                f"{rate:.1f} it/s eta={eta_min:.0f} min",
+                flush=True,
+            )
             running = 0.0
         if step >= args.steps:
             break
