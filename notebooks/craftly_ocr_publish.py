@@ -1,3 +1,15 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "marimo",
+#     "numpy",
+#     "pillow",
+#     "matplotlib",
+#     "torch",
+#     "safetensors",
+#     "huggingface_hub",
+# ]
+# ///
 import marimo
 
 __generated_with = "0.25.2"
@@ -212,7 +224,7 @@ def _(batch_ui, compile_on, ds, load, mo, steps_ui):
         model.parameters(), lr=3e-4, weight_decay=0.05, fused=device == "cuda"
     )
     loader = _torch.utils.data.DataLoader(
-        ds, batch_size=min(batch_ui.value, 16 if device == "cpu" else 512),
+        ds, batch_size=min(batch_ui.value, 16 if device == "cpu" else 1024),
         num_workers=0 if device == "cpu" else 8, shuffle=True, pin_memory=device == "cuda",
         persistent_workers=device == "cuda", prefetch_factor=4 if device == "cuda" else None,
         collate_fn=load("craftly_ocr.data.synthetic").collate_lines,
@@ -241,7 +253,7 @@ def _(batch_ui, compile_on, ds, load, mo, steps_ui):
     wall = _time.time() - t0
     its = steps_ui.value / max(wall, 1e-6)
     n_full = 200_000
-    eta_gpu = n_full / max(its * (512 / min(batch_ui.value, 512)), 1e-6) / 3600 if device == "cuda" else None
+    eta_gpu = n_full / max(its * (1024 / min(batch_ui.value, 1024)), 1e-6) / 3600 if device == "cuda" else None
     summary = {
         "device": device,
         "steps": steps_ui.value,
