@@ -51,9 +51,11 @@ def git_ready() -> None:
     subprocess.run([sys.executable, "-c", "import torch"], check=True)
 
 
-def auto_vram_batch(run_step, device: str, base: int = 1024, cap: int = 16384, frac: float = 0.85) -> tuple[int, float]:
+def auto_vram_batch(run_step, device: str, base: int = 1024, cap: int = 16384, frac: float = 0.85, amp: bool = True) -> tuple[int, float]:
     """Probe VRAM by doubling batch until ~frac of total memory is used.
-    run_step(batch_size) must run one tiny fwd+bwd on the given batch.
+    run_step(batch_size) must run one tiny fwd+bwd on the given batch;
+    probing runs under bf16 autocast so the memory profile matches training.
+    OOMbacks off by halving and keeps probing instead of giving up.
     Returns (chosen_batch, peak_bytes). CPU returns (base, 0)."""
     if device != "cuda":
         return base, 0.0
@@ -65,17 +67,20 @@ def auto_vram_batch(run_step, device: str, base: int = 1024, cap: int = 16384, f
         try:
             torch.cuda.empty_cache()
             torch.cuda.reset_peak_memory_stats()
-            run_step(b)
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=amp):
+                run_step(b)
             last_peak = torch.cuda.max_memory_allocated()
             if b >= cap or last_peak * 1.6 >= target:
                 scale = min(1.6, max(1.0, target / max(last_peak, 1.0)))
-                chosen = min(cap, max(base, int(b * scale) // 512 * 512))
+                chosen = min(cap, max(b, int(b * scale) // 512 * 512))
                 torch.cuda.empty_cache()
                 return chosen, last_peak
             b = min(cap, b * 2)
         except torch.cuda.OutOfMemoryError:
             torch.cuda.empty_cache()
-            return max(base, int(b / 1.8) // 512 * 512), last_peak
+            if b <= 512:
+                return max(128, b // 2 // 128 * 128), last_peak
+            b //= 2
 
 
 def hf_upload(files: dict, repo_id: str, token: str, msg: str, private: bool = False) -> str:

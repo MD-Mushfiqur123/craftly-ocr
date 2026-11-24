@@ -203,7 +203,11 @@ def _(compile_p, eye_ds, hf_model, hf_token, hf_user, load, minutes_p, mo, repo_
 
     if _device == "cuda":
         _batch, _peak = _util.auto_vram_batch(_probe, _device)
-        mo.output.append(f"🔧 auto batch **{_batch:,}** (~{_peak / (1 << 30):.1f} GB @1024 → fills ~85% VRAM)")
+        _total_gb = _torch.cuda.get_device_properties(0).total_memory / (1 << 30)
+        mo.output.append(
+            f"🔧 auto batch **{_batch:,}** · bf16 probe peak {_peak / (1 << 30):.1f} GB"
+            f" → target ~{_total_gb * 0.85:.0f}/{_total_gb:.0f} GB VRAM"
+        )
         if compile_p.value:
             eye_model = _torch.compile(eye_model)
     else:
