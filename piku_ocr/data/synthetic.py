@@ -39,7 +39,7 @@ class LineRenderer:
         draw.text((x, y), text, fill=0, font=font)
         if self.rng.random() < 0.5:
             img = img.filter(ImageFilter.GaussianBlur(self.rng.uniform(0.2, 1.2)))
-        t = torch.frombuffer(img.convert("RGB").tobytes(), dtype=torch.uint8)
+        t = torch.frombuffer(bytearray(img.convert("RGB").tobytes()), dtype=torch.uint8)
         return (t.reshape(height, width, 3).permute(2, 0, 1).float() / 255.0)
 
 
