@@ -88,6 +88,28 @@ def hf_upload(files: dict, repo_id: str, token: str, msg: str, private: bool = F
     return f"https://huggingface.co/{repo_id}"
 
 
+def hf_ensure_ckpt(repo_id: str, token: str | None, filename: str, dest: Path) -> bool:
+    """Pull ckpts/<filename> from the HF repo if `dest` is missing locally."""
+    import shutil
+
+    if dest.exists() or not repo_id or not token:
+        return False
+    try:
+        from huggingface_hub import hf_hub_download
+
+        src = hf_hub_download(
+            repo_id=repo_id,
+            filename=f"ckpts/{Path(filename).name}",
+            token=token,
+            local_dir=str(dest.parent.parent),
+        )
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dest)
+        return True
+    except Exception:
+        return False
+
+
 def maybe_hf_upload(args, files: dict, msg: str, model_name: str, step: int, summary: dict) -> str:
     token = args.hf_token or os.environ.get("HF_TOKEN", "")
     user = args.hf_user or os.environ.get("HF_USER", "")

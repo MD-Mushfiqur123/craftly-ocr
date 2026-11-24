@@ -138,7 +138,7 @@ def _(corpora_p, load, mo, repo_root):
 
     _charset = load("piku_ocr.charset").build_charset()
     _syn = load("piku_ocr.data.synthetic")
-    eye_ds = _syn.EyeDataset(_charset, str(corpora_p), str(_d_p(repo_root) / "fonts"), cap=400_000)
+    eye_ds = _syn.EyeDataset(_charset, str(corpora_p), str(_d_p(repo_root) / "fonts"), cap=1_200_000)
     eye_stats = {"lines": len(eye_ds.lines), "charset": _charset.size}
     mo.md("🖼️ render dataset ready: **{}** lines · charset **{}** glyphs ✅".format(
         f"{eye_stats['lines']:,}", eye_stats["charset"]))
@@ -171,7 +171,7 @@ def _(mo):
 
 
 @app.cell
-def _(compile_p, eye_ds, load, minutes_p, mo, repo_root, run_eye_p):
+def _(compile_p, eye_ds, hf_model, hf_token, hf_user, load, minutes_p, mo, repo_root, run_eye_p):
     import time as _time
     from pathlib import Path as _e_p
 
@@ -186,6 +186,9 @@ def _(compile_p, eye_ds, load, minutes_p, mo, repo_root, run_eye_p):
     _util.max_perf(_device)
     eye_model = load("piku_ocr.model.eye").PikuEye(_char, _cfg).to(_device)
     _ckpt = _e_p(repo_root) / "ckpt" / "eye_last.pt"
+    if not _ckpt.exists() and hf_token.value and hf_user.value and hf_model.value:
+        if _util.hf_ensure_ckpt(f"{hf_user.value}/{hf_model.value}", hf_token.value, "eye_last.pt", _ckpt):
+            mo.output.append("☁️ pulled eye checkpoint from Hugging Face — resuming the daily streak!")
     _opt = _torch.optim.AdamW(eye_model.parameters(), lr=3e-4, weight_decay=0.01, fused=_device == "cuda")
 
     _gsteps = 0
@@ -268,7 +271,7 @@ def _(compile_p, eye_ds, load, minutes_p, mo, repo_root, run_eye_p):
 
 
 @app.cell
-def _(brain_minutes_p, corpora_p, load, mo, repo_root, run_brain_p):
+def _(brain_minutes_p, corpora_p, hf_model, hf_token, hf_user, load, mo, repo_root, run_brain_p):
     import time as _b_time
     from pathlib import Path as _b_p
 
@@ -283,6 +286,9 @@ def _(brain_minutes_p, corpora_p, load, mo, repo_root, run_brain_p):
     _util.max_perf(_b_device)
     brain_model = load("piku_ocr.model.brain").PikuBrain(_b_char, _b_cfg).to(_b_device)
     _b_ckpt = _b_p(repo_root) / "ckpt" / "brain_last.pt"
+    if not _b_ckpt.exists() and hf_token.value and hf_user.value and hf_model.value:
+        if _util.hf_ensure_ckpt(f"{hf_user.value}/{hf_model.value}", hf_token.value, "brain_last.pt", _b_ckpt):
+            mo.output.append("☁️ pulled brain checkpoint from Hugging Face — resuming!")
     _b_opt = _b_torch.optim.AdamW(brain_model.parameters(), lr=3e-4, weight_decay=0.01, fused=_b_device == "cuda")
 
     _b_steps0 = 0
@@ -290,7 +296,7 @@ def _(brain_minutes_p, corpora_p, load, mo, repo_root, run_brain_p):
         _b_steps0 = _util.load_checkpoint(_b_ckpt, brain_model, _b_opt)[0]
         mo.output.append(f"↩️ resumed brain at global step {_b_steps0:,}")
 
-    _b_ds = _syn.BrainDataset(_b_char, str(corpora_p), cap=400_000)
+    _b_ds = _syn.BrainDataset(_b_char, str(corpora_p), cap=1_200_000)
     if not _b_ds.lines:
         mo.output.append("⚠️ no corpus — run the data cell first")
         brain_summary = {"device": _b_device, "global_steps": _b_steps0, "session_steps": 0, "last_loss": None}
@@ -417,7 +423,11 @@ def _(brain_model, brain_summary, eye_model, eye_summary, hf_model, hf_private, 
                 _rid = f"{hf_user.value}/{hf_model.value}"
                 _api.create_repo(_rid, private=hf_private.value, exist_ok=True)
                 _api.upload_folder(repo_id=_rid, folder_path=str(out_dir), commit_message="Piku OCR progress push")
-                push_result = f"🎉 pushed → **https://huggingface.co/{_rid}**"
+                for _name in ("eye_last.pt", "brain_last.pt"):
+                    _f = _x_p(repo_root) / "ckpt" / _name
+                    if _f.exists():
+                        _api.upload_file(path_or_fileobj=str(_f), path_in_repo=f"ckpts/{_name}", repo_id=_rid, commit_message="session checkpoints")
+                push_result = f"🎉 pushed → **https://huggingface.co/{_rid}** (model + checkpoints — next session auto-resumes from here)"
         except Exception as e_x:
             push_result = f"❌ {type(e_x).__name__}: {e_x}"
     else:
