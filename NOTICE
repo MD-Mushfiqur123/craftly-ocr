@@ -1,0 +1,20 @@
+NOTICE (Piku OCR)
+=================
+
+Piku OCR is a deep rebrand of PaddleOCR, developed by the PaddlePaddle
+Authors and contributors, licensed under the Apache License, Version 2.0.
+
+- Upstream project: https://github.com/PaddlePaddle/PaddleOCR
+- Upstream license: Apache-2.0 (see LICENSE — copyright notices retained)
+
+We thank the PaddlePaddle team and the entire PaddleOCR community: the
+training engine, model architectures, configs, and deployment tooling in
+this repository originate from upstream PaddleOCR.
+
+Changes made by the Piku OCR project:
+- package and branding renamed (paddleocr -> pikuocr, ppocr -> pkocr,
+  PP-* product classes -> Piku* / Piku-*)
+- bn/en/ru first-class focus; custom data tooling in `piku_data/`
+
+All Apache-2.0 notices, disclaimers, and attribution obligations apply
+to this distribution as they did to upstream PaddleOCR.

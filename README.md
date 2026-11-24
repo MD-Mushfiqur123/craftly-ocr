@@ -1,95 +1,85 @@
-# Piku OCR 👁️🧠
+# 👁️ Piku OCR
 
-Accurate, two-model OCR built from scratch for **Bangla 🇧🇩 + English 🇬🇧 + Russian 🇷🇺**.
-No inherited architecture — designed clean, trained on one RTX Pro 6000 96GB,
-budgeted at **2 hours per day** with resumable checkpoints.
+**Bangla · English · Russian OCR — on-device fast, deeply rebranded, fully open.**
 
-## The two models
+Piku OCR is a multilingual OCR toolkit built around the proven PikuOCR
+dynasty of models (text detection + recognition + direction classify +
+document parsing), with **bn / en / ru as first-class languages**.
 
-| Model | Role | Size | License |
-|---|---|---|---|
-| **Piku-Eye** 👁️ | reads a line image (3×64×512) → chars via CTC over a compact 457-glyph bn/en/ru charset | ~6.5M | Apache-2.0 |
-| **Piku-Brain** 🧠 | tiny full-attention denoiser that fixes reader errors (char-id → char-id) | ~2.5M | Apache-2.0 |
+> **Provenance:** Piku OCR is a deep rebrand of
+> [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) (Apache-2.0).
+> The full training engine, architectures, configs and deployment tooling
+> originate upstream — see [NOTICE](NOTICE) and [LICENSE](LICENSE).
 
-Why two models: with a daily 2h budget, the eye converges in a few sessions,
-and the brain adds the accuracy layer plain readers miss (error-correction
-decoder at 2.5M params).
+## Why Piku OCR
 
-## New-architecture highlights (Piku-Eye)
+- **bn / en / ru first-class** — dedicated dicts, corpus tooling, fine-tune
+  recipes for Bangla, English and Russian
+- **Micro to server** — mobile models run on-device in a few MB; server
+  models rail the full accuracy curve
+- **Complete pipeline** — text detection → cropping → recognition →
+  post-processing; plus layout, table, formula and doc-VL pipelines
+- **One-command inference & export** — Python API, CLI, PNG→TXT in one line
 
-- **Narrow-band attention**: a sliding width-window of 33 anchors per query
-  (padded band attention over the time axis) — long-range bangla conjunct
-  clusters without full quadratic attention
-- **GRN residual stem** (ConvNeXt-V2-style global response norm on the stem)
-- Flat token row (T=128) with sinusoidal positions; 8-layer pre-LN encoder
-- **Compact charset** (457 glyphs vs region-wide ~40k) → sharper per-glyph
-  decision boundaries, faster CTC
-
-## Daily protocol (the only commands you need)
+## Quickstart (inference)
 
 ```bash
-# Day 0 (once): data  — 2,000 MB per language is plenty for stage 1-2
-python scripts/fetch_piku.py --langs bn,en,ru --mb 2000
-
-# every day: one 2h eye session (auto-resumes from ckpt/eye_last.pt)
-python -m piku_ocr.train_eye --minutes 120
-
-# after a few eye sessions: one 2h brain session
-python -m piku_ocr.train_brain --minutes 120
-
-# anytime: export both to a single safetensors bundle
-python -m piku_ocr.export_piku --out export/piku-ocr
+pip install -e .
+pikuocr ocr -i your_image.png
 ```
 
-All max-performance settings are pre-fixed in `piku_ocr/config.py`
-(bf16, TF32, torch.compile, fused AdamW, 8 workers) — no CLI guessing
-needed on the 96GB box. **Batch size is auto-probed at session start**
-(doubling until ~85% of VRAM is measured in use, up to 16,384) so the
-96GB is filled without OOM.
+```python
+from pikuocr import PikuOCR
 
-### Auto HF upload (progress-safe)
-Export once before your daily run:
+pipeline = PikuOCR(device="cpu")
+result = pipeline.predict("your_image.png")
+result.print()
+result.save_to_img("output")
+```
+
+## Training (full pipeline included)
+
 ```bash
-export HF_TOKEN=hf_xxx   # https://huggingface.co/settings/tokens (write)
-export HF_USER=your-username
-```
-Then every session end **or Ctrl+C** pushes the checkpoint + a progress json
-to `https://huggingface.co/<HF_USER>/piku-ocr` — if the machine dies, nothing
-is lost. Add `--hf-private` to keep the repo private.
+# single-GPU training (works on your RTX Pro 6000 96GB)
+python tools/train.py -c configs/rec/PikuOCRv4/rec_v4_seed_bangla.yml
 
-## Fixed hardware profile (RTX Pro 6000, 96GB)
+# eval
+python tools/eval.py -c configs/rec/... -o Global.checkpoints=./output/...
 
-- bf16 autocast + TF32 matmul + cuDNN benchmark
-- `torch.compile` on the eye trainer (disable with `--no-compile`)
-- fused AdamW, batch 1024, 8 dataloader workers, prefetch 4
-- checkpoints every 500 steps (eye) / 1000 (brain) + at session end
-
-## Repository layout
-
-```
-piku_ocr/
-  charset.py         bn/en/ru glyph builder (blank/pad/unk + 457 glyphs)
-  config.py          PikuConfig + fixed max-perf settings
-  model/eye.py       PikuEye (stem, band attention, CTC head)
-  model/brain.py     PikuBrain (denoising corrector) + error simulator
-  data/corpus.py     CC-100 streaming fetch + script-ratio cleaner
-  data/synthetic.py  LineRenderer, EyeDataset, BrainDataset, collates
-  train_eye.py       stage-1 trainer (2h/day, resumable)
-  train_brain.py     stage-2 trainer (2h/day, resumable)
-  infer.py           two-model inference: read_lines()
-  export_piku.py     safetensors export (eye + brain bundle)
-scripts/fetch_piku.py  data CLI
-tests/test_piku.py     charset roundtrip, eye task learning, brain denoise
+# export to on-device inference model
+python tools/export_model.py -c configs/rec/... -o Global.pretrained_model=./output/...
 ```
 
-## Data
+Configs for detection / recognition / classication across mobile + server
+variants live under `configs/`. dicts for bn/en/ru live in
+`pkocr/utils/dict/`.
 
-Synthetic-first (same proven recipe as modern OCR systems): clean text
-corpora rendered with Noto fonts + blur/geometry augmentation means zero
-labelling cost. Handwriting fine-tuning datasets (real-image stage 3) are
-catalogued in [docs/DATASETS.md](docs/DATASETS.md).
+## Synthetic data factory (bn/en/ru)
 
-## License
+`piku_data/` contains the original Piku data tooling used to build
+fine-tune datasets from CC-100 corpora (streaming fetch → script-filter →
+NFC dedup → font-rendered line images with Noto Bengali/Sans).
 
-Apache-2.0 — see [LICENSE](LICENSE). Piku OCR is built from scratch; no
-third-party model code or weights are included.
+```bash
+python -m piku_data.corpus --help   # streaming corpus fetch + clean
+```
+
+## Layout
+
+| path | what |
+|---|---|
+| `pikuocr/` | Python package: pipelines, CLI, model zoo glue |
+| `pkocr/` | training core: data, modeling, losses, optimizer, metrics |
+| `pkstructure/` | document parsing (layout · table · KIE · recovery) |
+| `tools/` | train.py · eval.py · export_model.py + infer tools |
+| `configs/` | all training configs (det / rec / cls, mobile & server) |
+| `deploy/` | server, C++, Jetson, android, ios deployment |
+| `piku_data/` | CC-100 fetch + synthetic renderer for bn/en/ru |
+| `fonts/` | Noto Sans + Noto Sans Bengali for the renderer |
+
+## Governance
+
+- License: Apache-2.0 — rebrand permitted; upstream attribution retained in [NOTICE](NOTICE)
+- Upstream project: https://github.com/PaddlePaddle/PaddleOCR
+
+*We will win.* 🏁

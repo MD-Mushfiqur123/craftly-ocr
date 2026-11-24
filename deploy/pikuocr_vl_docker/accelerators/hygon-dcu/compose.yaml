@@ -1,0 +1,53 @@
+services:
+  pikuocr-vl-api:
+    image: ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/pikuocr-vl:${API_IMAGE_TAG_SUFFIX}
+    container_name: pikuocr-vl-api
+    ports:
+      - 8080:8080
+    depends_on:
+      pikuocr-vlm-server:
+        condition: service_healthy
+    user: root
+    privileged: true
+    devices:
+      - /dev/kfd
+      - /dev/dri
+      - /dev/mkfd
+    group_add:
+      - video
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    restart: unless-stopped
+    environment:
+      - VLM_BACKEND=${VLM_BACKEND:-vllm}
+    command: paddlex --serve --pipeline /home/pikuocr/pipeline_config_${VLM_BACKEND}.yaml --device dcu
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+    volumes:
+      - /opt/hyhal/:/opt/hyhal/:ro
+    shm_size: 64g
+
+  pikuocr-vlm-server:
+    image: ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/pikuocr-genai-${VLM_BACKEND}-server:${VLM_IMAGE_TAG_SUFFIX}
+    container_name: pikuocr-vlm-server
+    user: root
+    privileged: true
+    devices:
+      - /dev/kfd
+      - /dev/dri
+      - /dev/mkfd
+    group_add:
+      - video
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      start_period: 300s
+    volumes:
+      - /opt/hyhal/:/opt/hyhal/:ro
+    shm_size: 64g

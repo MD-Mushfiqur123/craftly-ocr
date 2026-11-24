@@ -1,8 +1,8 @@
 __pycache__/
-*.py[cod]
-*.pt
-*.safetensors
+*.pyc
 corpora/
-data/lines/
-data/pages/
-.venv/
+output/
+ckpt/
+export/
+ipynb_checkpoints/
+.vscode/
