@@ -363,11 +363,12 @@ def _(corpora_p, eye_ds, eye_model, load, mo):
 
     _syn = load("piku_ocr.data.synthetic")
     _render = _syn.LineRenderer(str(corpora_p.parent / "fonts"))
+    _dev = next(eye_model.parameters()).device
     _pairs = []
     with _r_torch.no_grad():
         for _i in range(4):
             _lang, _text = eye_ds.lines[_i * 977 % max(1, len(eye_ds.lines))]
-            _px = _render.render(_text, 64, 512).unsqueeze(0)
+            _px = _render.render(_text, 64, 512).unsqueeze(0).to(_dev)
             _guess = eye_model.decode(_px)[0]
             _pairs.append((_lang, _text, _guess))
     _rows = "\n".join(
