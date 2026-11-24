@@ -44,20 +44,26 @@ class LineRenderer:
 
 
 def _load_lines(corpora_dir: str, langs: list[str], cap: int = 2_000_000) -> list[tuple[str, str]]:
+    per_lang = max(1, cap // len(langs))
     out: list[tuple[str, str]] = []
     for lang in langs:
+        if len(out) >= cap:
+            break
         p = Path(corpora_dir) / f"{lang}.txt"
         if not p.exists():
             continue
         seen = set()
+        quota = per_lang if len(out) + per_lang <= cap else cap - len(out)
+        n_lang = 0
         with open(p, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if 3 <= len(line) <= 120 and line not in seen:
                     seen.add(line)
                     out.append((lang, line))
-                if len(out) >= cap:
-                    break
+                    n_lang += 1
+                    if n_lang >= quota:
+                        break
     return out
 
 
