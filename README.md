@@ -42,8 +42,20 @@ python -m piku_ocr.export_piku --out export/piku-ocr
 ```
 
 All max-performance settings are pre-fixed in `piku_ocr/config.py`
-(batch 1024, bf16, TF32, torch.compile, fused AdamW, 8 workers) —
-no CLI guessing needed on the 96GB box.
+(bf16, TF32, torch.compile, fused AdamW, 8 workers) — no CLI guessing
+needed on the 96GB box. **Batch size is auto-probed at session start**
+(doubling until ~85% of VRAM is measured in use, up to 16,384) so the
+96GB is filled without OOM.
+
+### Auto HF upload (progress-safe)
+Export once before your daily run:
+```bash
+export HF_TOKEN=hf_xxx   # https://huggingface.co/settings/tokens (write)
+export HF_USER=your-username
+```
+Then every session end **or Ctrl+C** pushes the checkpoint + a progress json
+to `https://huggingface.co/<HF_USER>/piku-ocr` — if the machine dies, nothing
+is lost. Add `--hf-private` to keep the repo private.
 
 ## Fixed hardware profile (RTX Pro 6000, 96GB)
 

@@ -6,6 +6,19 @@ python scripts/fetch_piku.py --langs bn,en,ru --mb 2000
 ```
 Shows per-language fetch MB + seconds (time accounting) and clean line counts.
 
+## One-time: HF auto-upload setup
+```bash
+export HF_TOKEN=hf_xxx     # write token
+export HF_USER=your-username
+```
+Session end (or Ctrl+C) auto-uploads `ckpts/eye_last.pt` / `ckpts/brain_last.pt`
++ `logs/*_progress.json` to huggingface.co/<HF_USER>/piku-ocr.
+
+## Batch auto-probe
+Session start prints e.g. `auto batch: 8,192 — … -> target ~81/96 GB VRAM`.
+It doubles from 1024, measures peak allocation, and backs off on OOM —
+no manual tuning.
+
 ## Daily session — eye (stage 1)
 ```bash
 python -m piku_ocr.train_eye --minutes 120
