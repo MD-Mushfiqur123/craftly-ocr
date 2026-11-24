@@ -1,0 +1,88 @@
+"""Piku-Brain trainer — stage 2. 2h/day resumable denoising training.
+
+Runs after an eye checkpoint exists. Noise mimics real reader errors; the
+brain learns to map corrupted char ids back to clean corpus text.
+Protocol: `python -m piku_ocr.train_brain --minutes 120` daily.
+"""
+
+from __future__ import annotations
+
+import argparse
+import time
+from pathlib import Path
+
+import torch
+from torch.utils.data import DataLoader
+
+from .charset import build_charset
+from .config import PikuConfig
+from .data.synthetic import BrainDataset, brain_collate
+from .model.brain import PikuBrain
+from .train_util import load_checkpoint, max_perf, save_checkpoint
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--corpora", default="corpora")
+    ap.add_argument("--minutes", type=float, default=120.0)
+    ap.add_argument("--lr", type=float, default=3e-4)
+    ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--ckpt", default="ckpt/brain_last.pt")
+    args = ap.parse_args(argv)
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    max_perf(device)
+    cfg = PikuConfig()
+    charset = build_charset()
+    model = PikuBrain(charset, cfg).to(device)
+    batch = 1024 if device == "cuda" else 16
+    workers = args.workers if device == "cuda" else 0
+    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01, fused=device == "cuda")
+
+    done, total_prev = 0, 0
+    ckpt_p = Path(args.ckpt)
+    if ckpt_p.exists():
+        total_prev, _ = load_checkpoint(ckpt_p, model, opt)
+        print(f"resumed from {ckpt_p} at global step {total_prev:,}")
+
+    ds = BrainDataset(charset, args.corpora)
+    if not ds.lines:
+        raise SystemExit(f"no clean corpus in {args.corpora} — run fetch first")
+    print(f"dataset: {len(ds.lines):,} lines, charset {charset.size}, device {device}")
+    loader = DataLoader(
+        ds, batch_size=batch, shuffle=True, num_workers=workers,
+        pin_memory=device == "cuda", persistent_workers=device == "cuda",
+        prefetch_factor=4 if device == "cuda" else None, collate_fn=brain_collate,
+    )
+
+    model.train()
+    it, loss_hist = iter(loader), []
+    t_start, deadline = time.time(), time.time() + args.minutes * 60
+    step_in_session, eta_print = 0, time.time() + 60
+    while time.time() < deadline:
+        try:
+            noisy, clean = next(it)
+        except StopIteration:
+            it = iter(loader)
+            noisy, clean = next(it)
+        noisy = noisy.to(device, non_blocking=True)
+        loss = model.loss(noisy, clean)
+        opt.zero_grad(set_to_none=True)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        opt.step()
+        loss_hist.append(loss.item())
+        step_in_session += 1
+        if time.time() >= eta_print:
+            eta_print = time.time() + 60
+            print(f"step {total_prev + step_in_session:,} loss={loss_hist[-1]:.3f} "
+                  f"session_min_left={(deadline - time.time()) / 60:.0f}")
+        if step_in_session % 1000 == 0:
+            save_checkpoint(ckpt_p, model, opt, None, total_prev + step_in_session)
+    save_checkpoint(ckpt_p, model, opt, None, total_prev + step_in_session)
+    print(f"session done: +{step_in_session:,} steps in {(time.time() - t_start) / 60:.1f} min, "
+          f"mean_loss_last500={sum(loss_hist[-500:]) / max(1, len(loss_hist[-500:])):.3f}, ckpt={ckpt_p}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,7 +1,7 @@
 [project]
-name = "craftly-ocr"
-version = "0.1.0"
-description = "Craftly OCR: a Mirage-inspired micro vision-language OCR model for on-device text recognition in 210+ languages (Bangla, English, Russian first)."
+name = "piku-ocr"
+version = "1.0.0"
+description = "Piku OCR: from-scratch two-model OCR (Piku-Eye reader + Piku-Brain corrector) for Bangla, English and Russian."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -9,16 +9,14 @@ dependencies = [
     "torch>=2.1",
     "pillow>=10.0",
     "safetensors>=0.4",
-    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
-train = ["numpy>=1.26", "tqdm>=4.66", "fonts-noto"]
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["craftly_ocr*"]
+include = ["piku_ocr*"]

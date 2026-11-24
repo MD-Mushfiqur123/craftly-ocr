@@ -1,7 +1,7 @@
 # Dataset roadmap
 
 ## Stage 0 — synthetic (unbounded, no labelling cost)
-- Render engine: `craftly_ocr/data/synthetic.py`
+- Render engine: `piku_ocr/data/synthetic.py`
 - Fonts: [Noto family](https://fonts.google.com/noto) per script — Noto Sans
   Bengali / Noto Sans (Cyrillic/Latin covers bn/en/ru). Linux: `apt install
   fonts-noto fonts-noto-core`
