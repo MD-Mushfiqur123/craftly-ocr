@@ -24,11 +24,12 @@ def seconds_left(deadline: float) -> float:
 
 def save_checkpoint(path: Path, model, opt, scaler, step: int, extra: dict | None = None):
     path.parent.mkdir(parents=True, exist_ok=True)
+    state = {k.replace("_orig_mod.", ""): v for k, v in model.state_dict().items()}
     torch.save(
         {
-            "model": model.state_dict(),
+            "model": state,
             "opt": opt.state_dict(),
-            "scaler": scaler.state_dict(),
+            "scaler": scaler.state_dict() if scaler is not None else None,
             "step": step,
             "extra": extra or {},
         },
@@ -38,7 +39,7 @@ def save_checkpoint(path: Path, model, opt, scaler, step: int, extra: dict | Non
 
 def load_checkpoint(path: Path, model, opt=None, scaler=None):
     ck = torch.load(path, map_location="cpu", weights_only=False)
-    model.load_state_dict(ck["model"])
+    model.load_state_dict({k.replace("_orig_mod.", ""): v for k, v in ck["model"].items()})
     if opt is not None:
         opt.load_state_dict(ck["opt"])
     if scaler is not None and "scaler" in ck:

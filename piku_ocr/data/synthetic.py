@@ -64,9 +64,9 @@ def _load_lines(corpora_dir: str, langs: list[str], cap: int = 2_000_000) -> lis
 class EyeDataset(Dataset):
     """clean text -> rendered line image + ids (for Piku-Eye CTC)."""
 
-    def __init__(self, charset: PikuCharset, corpora_dir: str, fonts_dir: str, langs=("bn", "en", "ru")):
+    def __init__(self, charset: PikuCharset, corpora_dir: str, fonts_dir: str, langs=("bn", "en", "ru"), cap: int = 2_000_000):
         self.charset = charset
-        self.lines = _load_lines(corpora_dir, list(langs))
+        self.lines = _load_lines(corpora_dir, list(langs), cap=cap)
         self.renderer = LineRenderer(fonts_dir)
 
     def __len__(self):
@@ -80,9 +80,9 @@ class EyeDataset(Dataset):
 class BrainDataset(Dataset):
     """corrupted (reader-style) ids -> clean ids (for Piku-Brain)."""
 
-    def __init__(self, charset: PikuCharset, corpora_dir: str, langs=("bn", "en", "ru"), seed: int = 11):
+    def __init__(self, charset: PikuCharset, corpora_dir: str, langs=("bn", "en", "ru"), seed: int = 11, cap: int = 2_000_000):
         self.charset = charset
-        self.lines = _load_lines(corpora_dir, list(langs))
+        self.lines = _load_lines(corpora_dir, list(langs), cap=cap)
         self.rng = torch.Generator().manual_seed(seed)
 
     def __len__(self):
