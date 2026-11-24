@@ -17,9 +17,9 @@ from ..charset import PikuCharset
 def corrupt(text: str, rng: torch.Generator, cer: float = 0.10) -> str:
     if not text:
         return text
+    probs = torch.rand(len(text), generator=rng).tolist()
     out = []
-    for ch in text:
-        p = float(torch.rand(1, generator=rng))
+    for ch, p in zip(text, probs):
         if p < cer * 0.30:
             continue
         if p < cer * 0.55:

@@ -64,11 +64,7 @@ def main(argv=None):
     if not ds.lines:
         raise SystemExit(f"no clean corpus in {args.corpora} — run fetch first")
     print(f"dataset: {len(ds.lines):,} lines, charset {charset.size}, device {device}")
-    loader = DataLoader(
-        ds, batch_size=batch, shuffle=True, num_workers=workers,
-        pin_memory=device == "cuda", persistent_workers=device == "cuda",
-        prefetch_factor=4 if device == "cuda" else None, collate_fn=brain_collate,
-    )
+    loader = DataLoader(ds, batch_size=batch, shuffle=True, collate_fn=brain_collate)
 
     model.train()
     it, loss_hist = iter(loader), []

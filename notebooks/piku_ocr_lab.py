@@ -309,9 +309,6 @@ def _(brain_minutes_p, corpora_p, hf_model, hf_token, hf_user, load, mo, repo_ro
             mo.output.append("🧠 brain: full-attention denoiser · batch **1024** (~2.5M params — light but wide)")
         _b_loader = _b_torch.utils.data.DataLoader(
             _b_ds, batch_size=1024 if _b_device == "cuda" else 16, shuffle=True,
-            num_workers=4 if _b_device == "cuda" else 0,
-            pin_memory=_b_device == "cuda", persistent_workers=_b_device == "cuda",
-            prefetch_factor=4 if _b_device == "cuda" else None,
             collate_fn=_syn.brain_collate,
         )
         brain_model.train()
